@@ -23,7 +23,7 @@
   // Признаки вопроса: без них карточка не появится (защита от «я зарейдил базу, лол»)
   const QUESTION = ['?', 'как ', 'как?', 'где ', 'почему', 'зачем', 'что делать', 'что делает', 'что такое',
     'помогите', 'помоги', 'подскажите', 'подскажи', 'объясните', 'объясни', 'не могу', 'не получается',
-    'не работает', 'сколько', 'можно ли', 'кто знает', 'гайд', 'не понимаю', 'не понял', 'help'];
+    'не работает', 'сколько', 'можно ли', 'кто знает', 'гайд', 'не понимаю', 'не понял', 'help', 'кто шарит', 'кто нибудь знает', 'кто-нибудь знает'];
 
   // Явная просьба о помощи — если тема не нашлась, даём ссылку на главную
   const HELP = ['помогите', 'подскажите', 'подскажи', 'помоги', 'кто знает', 'не понимаю', 'гайд', 'help', 'объясните'];
@@ -60,7 +60,7 @@
     { name: 'Машина', words: ['машин', 'тачк', 'тюнинг', 'багажник', 'авто'], links: [['Машина не появляется', '/faq/#svoya-mashina'], ['Модификация транспорта', '/guides/vehicle-mods/']] },
     { name: 'Коллекции', words: ['коллекци'], links: [['Гайд: коллекции', '/guides/collections/']] },
     { name: 'Кланы', words: ['клан', 'банд'], links: [['Кланы и войны банд', '/mechanics/clans/']] },
-    { name: 'Карта', words: ['карт', 'где находится', 'лути-бей', 'лути бей'], links: [['Интерактивная карта', '/map/']] },
+    { name: 'Карта', words: ['на карте', 'по карте', 'карта игры', 'где находится', 'лути-бей', 'лути бей'], links: [['Интерактивная карта', '/map/']] },
   ];
 
   // Варианты ответа. {quote} — сообщение игрока, {links} — ссылки.
@@ -97,11 +97,15 @@
     return best && best.it;
   }
 
+  function isQuestion(raw) {
+    const text = norm(raw);
+    return raw.trim().length >= 8 && QUESTION.some((q) => q === '?' ? raw.includes('?') : text.includes(' ' + q.trim()));
+  }
+
   function analyze(raw) {
     const text = norm(raw);
     if (raw.trim().length < 8) return null;
-    const isQuestion = QUESTION.some((q) => q === '?' ? raw.includes('?') : text.includes(' ' + q.trim()));
-    if (!isQuestion) return null;
+    if (!isQuestion(raw)) return null;
     const links = [];
     const topics = [];
     const item = findItem(text);
@@ -147,6 +151,40 @@
     beep();
   }
 
+  // ======================= ЖУРНАЛ ВОПРОСОВ (для новых гайдов) =======================
+  const channelName = () => (document.title || '').replace(/^\[\d+\]\s*/, '').replace(/^\(\d+\)\s*/, '').split('|')[0].trim();
+  function logQuestion(m, res) {
+    const log = load('qlog', {});
+    const key = norm(m.raw).trim();
+    const e = log[key] || (log[key] = { q: m.raw, n: 0, ids: [], ch: [], first: m.ts, last: m.ts });
+    if (e.ids.includes(m.msgId)) return;           // то же сообщение из другой вкладки
+    e.ids = [...e.ids, m.msgId].slice(-20);
+    e.n++; e.last = Math.max(e.last, m.ts); e.first = Math.min(e.first, m.ts);
+    const ch = channelName(); if (ch && !e.ch.includes(ch)) e.ch.push(ch);
+    e.topics = res && res.links.length ? res.topics : [];
+    e.links = res ? res.links.map((l) => SITE + l[1]) : [];
+    const keys = Object.keys(log);
+    if (keys.length > 3000) keys.sort((a, b) => log[a].last - log[b].last).slice(0, keys.length - 3000).forEach((k) => delete log[k]);
+    save('qlog', log);
+  }
+
+  function exportQuestions() {
+    const all = Object.values(load('qlog', {})).sort((a, b) => b.n - a.n || b.last - a.last);
+    const d = (t) => new Date(t).toLocaleDateString('ru-RU');
+    const line = (e) => `- (${e.n}×) ${e.q.replace(/\s+/g, ' ')}  \n  _${e.ch.join(', ') || '—'} · ${d(e.first)}${e.first !== e.last ? '–' + d(e.last) : ''}_` +
+      (e.links.length ? `  \n  Скрипт ответил: ${e.topics.join(', ')} → ${e.links.join(' , ')}` : '');
+    const none = all.filter((e) => !e.links.length), ok = all.filter((e) => e.links.length);
+    const md = `# Вопросы игроков ROB RUN из Discord\n\n` +
+      `Собрано скриптом-помощником хелпера: ${d(Date.now())}. Всего уникальных вопросов: ${all.length}. Ники игроков не сохраняются.\n\n` +
+      `**Задача для Claude:** это реальные вопросы игроков. Для раздела «Нет ответа на сайте» предложи и напиши гайды или пункты FAQ для robrun.info. ` +
+      `Сначала самые частые (число в скобках = сколько раз спросили). В разделе «Ответ есть» проверь, действительно ли по ссылке есть ответ, и дополни страницу, если нет.\n\n` +
+      `## Нет ответа на сайте (${none.length})\n\n${none.map(line).join('\n') || '—'}\n\n## Ответ есть (${ok.length})\n\n${ok.map(line).join('\n') || '—'}\n`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+    a.download = `rr-voprosy-${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
   // ======================= ЧТЕНИЕ DISCORD =======================
   function readMessage(li) {
     const idm = li.id.match(/chat-messages-(\d+)-(\d+)/);
@@ -182,10 +220,11 @@
       if (!m || !m.raw) return;
       if (Date.now() - m.ts > MAX_AGE_MIN * 60e3) return;
       const res = analyze(m.raw);
+      if (isQuestion(m.raw)) logQuestion(m, res);
       if (!res) return;
       addCard({
         ...m, topics: res.topics, reply: buildReply(m.raw, res),
-        channel: (document.title || '').replace(/^\(\d+\)\s*/, '').split('|')[0].trim(),
+        channel: channelName(),
         link: `https://discord.com/channels/${m.guild}/${m.channelId}/${m.msgId}`,
       });
     });
@@ -221,12 +260,13 @@
   css.textContent = `
   #rrh{--bg:#1c1c1b;--panel:#161615;--card:#262625;--border:#383735;--text:#f1f0ec;--muted:#9a9894;--accent:#c6f432;--ink:#121210;
     --display:"Fira Sans Extra Condensed","Roboto Condensed","Arial Narrow",sans-serif;--font:"Roboto Condensed","Arial Narrow",Arial,sans-serif;
-    position:fixed;top:60px;right:12px;width:370px;max-height:80vh;z-index:99999;background:linear-gradient(180deg,#121211,#181817);color:var(--text);
+    position:fixed;top:60px;right:12px;width:390px;max-height:80vh;z-index:99999;background:linear-gradient(180deg,#121211,#181817);color:var(--text);
     border:1px solid #2b2a28;border-left:4px solid var(--accent);font:500 13px/1.4 var(--font);letter-spacing:.1px;box-shadow:0 10px 40px #0009;display:flex;flex-direction:column}
   #rrh *{border-radius:0;box-sizing:border-box}
   #rrh.min #rrh-body,#rrh.min #rrh-warn{display:none}
   #rrh header{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #2b2a28}
-  #rrh .brand{flex:1;font:italic 900 18px/1 var(--display);text-transform:uppercase;color:var(--accent)}
+  #rrh header button{white-space:nowrap;padding:6px 8px}
+  #rrh .brand{flex:1;white-space:nowrap;font:italic 900 16px/1 var(--display);text-transform:uppercase;color:var(--accent)}
   #rrh .brand i{color:var(--text);font-style:italic}
   #rrh .mark{background:var(--accent);color:var(--ink);font:italic 900 13px/1 var(--display);padding:4px 6px;transform:skew(-8deg)}
   #rrh .count{background:var(--accent);color:var(--ink);font:italic 800 11px/1 var(--display);padding:3px 7px;transform:skew(-8deg)}
@@ -245,14 +285,17 @@
   .rrc textarea:focus{outline:1px solid var(--accent)}
   .rrc .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;padding-left:3px}
   #rrh .empty{color:var(--muted);padding:6px 2px}
+  #rrh-qm{display:none;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid #2b2a28;background:#0f0f0e}
+  #rrh-qm.open{display:flex} #rrh-qm span{flex:1;color:var(--muted)} #rrh-qm b{color:var(--accent)} #rrh.min #rrh-qm{display:none}
   #rrh-warn{display:none;background:var(--accent);color:var(--ink);padding:7px 12px;font:italic 800 12px/1.3 var(--display);text-transform:uppercase}`;
   document.head.appendChild(css);
 
   const panel = document.createElement('div');
   panel.id = 'rrh';
-  panel.innerHTML = `<header><span class="mark">RR</span><span class="brand">Помощник<i>.</i>хелпера</span><span id="rrh-n" class="count"></span>
-    <button id="rrh-snd" title="Звук"></button><button id="rrh-min">–</button></header>
+  panel.innerHTML = `<header><span class="mark">RR</span><span class="brand">Помощник<i>.</i></span><span id="rrh-n" class="count"></span>
+    <button id="rrh-q" title="Журнал вопросов игроков"></button><button id="rrh-snd" title="Звук"></button><button id="rrh-min">–</button></header>
     <div id="rrh-warn">⚠ Эта вкладка прокручена вверх, новые сообщения могут не видеться. Прокрутите чат вниз.</div>
+    <div id="rrh-qm"><span>Вопросов сохранено: <b id="rrh-qn">0</b></span><button class="p" id="rrh-dl">Скачать</button><button id="rrh-clr">Очистить</button></div>
     <div id="rrh-body"></div>`;
   document.body.appendChild(panel);
   const warn = panel.querySelector('#rrh-warn');
@@ -263,6 +306,13 @@
   const drawSnd = () => (snd.textContent = load('sound', true) ? '🔔' : '🔕');
   snd.onclick = (e) => { e.stopPropagation(); save('sound', !load('sound', true)); drawSnd(); };
   drawSnd();
+  const qm = panel.querySelector('#rrh-qm');
+  const drawQ = () => { const n = Object.keys(load('qlog', {})).length; panel.querySelector('#rrh-q').textContent = 'Вопросы ' + n; panel.querySelector('#rrh-qn').textContent = n; };
+  panel.querySelector('#rrh-q').onclick = (e) => { e.stopPropagation(); qm.classList.toggle('open'); };
+  panel.querySelector('#rrh-dl').onclick = exportQuestions;
+  panel.querySelector('#rrh-clr').onclick = () => { if (confirm('Удалить все сохранённые вопросы? Сначала скачайте файл.')) save('qlog', {}); };
+  GM_addValueChangeListener('qlog', drawQ);
+  drawQ();
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
