@@ -219,22 +219,38 @@
   // ======================= ПАНЕЛЬ =======================
   const css = document.createElement('style');
   css.textContent = `
-  #rrh{position:fixed;top:60px;right:12px;width:360px;max-height:80vh;z-index:99999;background:#1e1f22;color:#dbdee1;
-    border:1px solid #3f4147;border-radius:10px;font:13px/1.4 sans-serif;box-shadow:0 8px 24px #0008;display:flex;flex-direction:column}
-  #rrh.min #rrh-body{display:none}
-  #rrh header{display:flex;gap:6px;align-items:center;padding:8px 10px;border-bottom:1px solid #3f4147;cursor:pointer}
-  #rrh header b{flex:1} #rrh button{background:#4e5058;color:#fff;border:0;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:12px}
-  #rrh button.p{background:#5865f2} #rrh-body{overflow:auto;padding:8px}
-  .rrc{background:#2b2d31;border-radius:8px;padding:8px;margin-bottom:8px}
-  .rrc .m{background:#111214;border-left:3px solid #5865f2;padding:6px;margin:6px 0;white-space:pre-wrap;word-break:break-word}
-  .rrc textarea{width:100%;box-sizing:border-box;height:110px;background:#111214;color:#dbdee1;border:1px solid #3f4147;border-radius:5px;font:12px sans-serif}
-  .rrc .t{color:#949ba4;font-size:11px} .rrc .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-  #rrh-warn{display:none;background:#f0b232;color:#000;padding:6px 10px;font-size:12px}`;
+  #rrh{--bg:#1c1c1b;--panel:#161615;--card:#262625;--border:#383735;--text:#f1f0ec;--muted:#9a9894;--accent:#c6f432;--ink:#121210;
+    --display:"Fira Sans Extra Condensed","Roboto Condensed","Arial Narrow",sans-serif;--font:"Roboto Condensed","Arial Narrow",Arial,sans-serif;
+    position:fixed;top:60px;right:12px;width:370px;max-height:80vh;z-index:99999;background:linear-gradient(180deg,#121211,#181817);color:var(--text);
+    border:1px solid #2b2a28;border-left:4px solid var(--accent);font:500 13px/1.4 var(--font);letter-spacing:.1px;box-shadow:0 10px 40px #0009;display:flex;flex-direction:column}
+  #rrh *{border-radius:0;box-sizing:border-box}
+  #rrh.min #rrh-body,#rrh.min #rrh-warn{display:none}
+  #rrh header{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #2b2a28}
+  #rrh .brand{flex:1;font:italic 900 18px/1 var(--display);text-transform:uppercase;color:var(--accent)}
+  #rrh .brand i{color:var(--text);font-style:italic}
+  #rrh .mark{background:var(--accent);color:var(--ink);font:italic 900 13px/1 var(--display);padding:4px 6px;transform:skew(-8deg)}
+  #rrh .count{background:var(--accent);color:var(--ink);font:italic 800 11px/1 var(--display);padding:3px 7px;transform:skew(-8deg)}
+  #rrh .count:empty{display:none}
+  #rrh button{background:#0f0f0e;color:var(--text);border:1px solid #33322f;padding:6px 10px;cursor:pointer;
+    font:italic 800 12px/1 var(--display);text-transform:uppercase;letter-spacing:.3px;transform:skew(-8deg);transition:background .12s}
+  #rrh button:hover{background:#2a2927;border-color:#4a4845}
+  #rrh button.p{background:var(--accent);border-color:var(--accent);color:var(--ink)} #rrh button.p:hover{background:#d7ff5e}
+  #rrh-body{overflow:auto;padding:10px;scrollbar-color:#383735 transparent}
+  .rrc{background:#232322;border-left:3px solid transparent;padding:10px;margin-bottom:10px;transition:background .12s}
+  .rrc:hover{background:#2d2c2a;border-left-color:var(--accent)}
+  .rrc .who{font:italic 800 15px/1.1 var(--display);text-transform:uppercase}
+  .rrc .t{color:var(--muted);font-size:11px} .rrc .tag{color:var(--accent);font:italic 700 11px var(--display);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+  .rrc .m{background:#0f0f0e;border-left:3px solid var(--accent);padding:7px 8px;margin:8px 0;white-space:pre-wrap;word-break:break-word}
+  .rrc textarea{width:100%;height:115px;background:#0f0f0e;color:#e6e4df;border:1px solid #2f2e2c;padding:6px;font:500 12px/1.4 var(--font);resize:vertical}
+  .rrc textarea:focus{outline:1px solid var(--accent)}
+  .rrc .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;padding-left:3px}
+  #rrh .empty{color:var(--muted);padding:6px 2px}
+  #rrh-warn{display:none;background:var(--accent);color:var(--ink);padding:7px 12px;font:italic 800 12px/1.3 var(--display);text-transform:uppercase}`;
   document.head.appendChild(css);
 
   const panel = document.createElement('div');
   panel.id = 'rrh';
-  panel.innerHTML = `<header><b>🛟 Помощник ROB RUN</b><span id="rrh-n"></span>
+  panel.innerHTML = `<header><span class="mark">RR</span><span class="brand">Помощник<i>.</i>хелпера</span><span id="rrh-n" class="count"></span>
     <button id="rrh-snd" title="Звук"></button><button id="rrh-min">–</button></header>
     <div id="rrh-warn">⚠ Эта вкладка прокручена вверх, новые сообщения могут не видеться. Прокрутите чат вниз.</div>
     <div id="rrh-body"></div>`;
@@ -252,18 +268,18 @@
 
   function render() {
     const cards = load('cards', []);
-    panel.querySelector('#rrh-n').textContent = cards.length ? `(${cards.length})` : '';
-    if (!cards.length) { body.innerHTML = '<div class="t">Пока нет вопросов. Держите вкладки с каналами открытыми и прокрученными вниз.</div>'; return; }
+    panel.querySelector('#rrh-n').textContent = cards.length ? String(cards.length) : '';
+    if (!cards.length) { body.innerHTML = '<div class="empty">Пока нет вопросов. Держите вкладки с каналами открытыми и прокрученными вниз.</div>'; return; }
     body.innerHTML = cards.map((c, i) => `<div class="rrc" data-i="${i}">
-      <div><b>${esc(c.author || 'Игрок')}</b> <span class="t">· ${esc(c.channel)} · ${new Date(c.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div>
-      <div class="t">${esc(c.topics.join(', '))}</div>
+      <div><span class="who">${esc(c.author || 'Игрок')}</span> <span class="t">· ${esc(c.channel)} · ${new Date(c.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div>
+      <div class="tag">${esc(c.topics.join(' · '))}</div>
       <div class="m">${esc(c.raw)}</div>
       <textarea>${esc(c.reply)}</textarea>
       <div class="row">
-        <button class="p" data-a="copy">📋 Копировать</button>
-        ${c.userId ? `<button data-a="profile">👤 Открыть профиль</button>` : `<button data-a="nick">👤 Копировать ник</button>`}
-        <button data-a="msg">💬 К сообщению</button>
-        <button data-a="done">✔ Готово</button>
+        <button class="p" data-a="copy">Копировать</button>
+        ${c.userId ? `<button data-a="profile">Профиль</button>` : `<button data-a="nick">Ник</button>`}
+        <button data-a="msg">К сообщению</button>
+        <button data-a="done">Готово</button>
       </div></div>`).join('');
   }
 
@@ -272,8 +288,8 @@
     const el = b.closest('.rrc'); const i = +el.dataset.i;
     const cards = load('cards', []); const c = cards[i]; if (!c) return;
     const a = b.dataset.a;
-    if (a === 'copy') { GM_setClipboard(el.querySelector('textarea').value); b.textContent = '✅ Скопировано'; }
-    if (a === 'nick') { GM_setClipboard(c.author); b.textContent = '✅ Ник скопирован'; }
+    if (a === 'copy') { GM_setClipboard(el.querySelector('textarea').value); b.textContent = 'Скопировано ✓'; }
+    if (a === 'nick') { GM_setClipboard(c.author); b.textContent = 'Ник скопирован ✓'; }
     if (a === 'profile') window.open(`https://discord.com/users/${c.userId}`, '_blank');
     if (a === 'msg') window.open(c.link, '_blank');
     if (a === 'done') { cards.splice(i, 1); save('cards', cards); }
